@@ -18,6 +18,11 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -200,6 +205,20 @@ func createShortcodePlaceholder(id int) string {
 	return fmt.Sprintf("{#{#%s-%d#}#}", shortcodePlaceholderPrefix, id)
 }
 
+func getImageRatio(imagePath string) float32 {
+	file, err := os.Open(imagePath)
+	if err != nil {
+		jww.ERROR.Printf("Unable to open image file :%v", err)
+		return 0
+	}
+
+	image, _, err := image.DecodeConfig(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", imagePath, err)
+	}
+	return float32(image.Width) / float32(image.Height)
+}
+
 const innerNewlineRegexp = "\n"
 const innerCleanupRegexp = `\A<p>(.*)</p>\n\z`
 const innerCleanupExpand = "$1"
@@ -210,6 +229,17 @@ func renderShortcode(sc shortcode, parent *ShortcodeWithPage, p *Page, t tpl.Tem
 	if tmpl == nil {
 		jww.ERROR.Printf("Unable to locate template for shortcode '%s' in page %s", sc.name, p.BaseFileName())
 		return ""
+	}
+
+	if sc.name == "photoset-item" {
+		dic, _ := sc.params.(map[string]string)
+		staticDir := helpers.GetStaticDirPath() + helpers.FilePathSeparator
+		file := filepath.Join(staticDir, dic["file"])
+
+		ratio := getImageRatio(file)
+		dic["ratio"] = fmt.Sprintf("%.6f", ratio)
+
+		jww.ERROR.Printf("photoset-item %+v", file)
 	}
 
 	data := &ShortcodeWithPage{Params: sc.params, Page: p, Parent: parent}
